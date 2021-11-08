@@ -12,9 +12,9 @@ module.exports = (sequelize, DataTypes) => {
         static associate(models) {
             // define association here
             Transactions.belongsTo(models.Users, { foreignKey: 'user_id', targetKey: 'id' })
-            Transactions.belongsTo(models.Categories, { 
-                foreignKey:"category_id",
-                as: "Categories"  
+            Transactions.belongsTo(models.Categories, {
+                foreignKey: "category_id",
+                as: "Categories"
             })
             Transactions.belongsTo(models.Safes, { foreignKey: 'safe_id', targetKey: 'id' })
         }
@@ -24,7 +24,9 @@ module.exports = (sequelize, DataTypes) => {
         category_id: DataTypes.INTEGER,
         safe_id: DataTypes.INTEGER,
         detailExpense: DataTypes.STRING,
-        expense: DataTypes.INTEGER
+        expense: DataTypes.INTEGER,
+        type: DataTypes.STRING,
+        amount: DataTypes.INTEGER,
     }, {
         sequelize,
         modelName: 'Transactions',

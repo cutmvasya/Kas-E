@@ -1,57 +1,70 @@
 const Joi = require("joi");
-const { Limits } = require("../models");
-const { Categories } = require("../models");
-const jwt = require("../helpers/jwt");
-const {getUserData} = require("../helpers/jwt")
+const { Limits, Categories } = require("../models");
 
 module.exports = {
   postLimit: async (req, res) => {
     const body = req.body;
-    const token = req.header("Authorization").replace("Bearer ", "")
-    const user = jwt.getUserData(token)
-    try {
-      const schema = Joi.object({
-        category_id: Joi.number().required(),
-        limit: Joi.number().required(),
+    const user = req.user;
+    const category = body.map((x) => x.category_id);
+    const limit = body.map((x) => x.limit);
+    const safe_id = body.map((x) => x.safe_id);
+    const data = [];
+    for (var i = 0; i < body.length; i++) {
+      data.push({
+        category_id: category[i],
+        limit: limit[i],
+        safe_id: safe_id[i],
+        user_id: user.id,
+        newLimit: limit[i]
       });
+    }
+    try {
+      // const schema = Joi.object().keys({
+      //   category_id: Joi.number().required(),
+      //   limit: Joi.number().required(),
+      //   safe_id: Joi.number().required(),
+      // });
 
-      const { error } = schema.validate(
-        {
-          category_id: body.category_id,
-          limit: body.limit,
-        },
-        { abortEarly: false }
-      );
+      // const { error } = schema.validate(
+      //   [{
+      //     category_id: body.category_id,
+      //     limit: body.limit,
+      //     safe_id: body.safe_id,
+      //   }],
+      //   { abortEarly: false },
+      //   Joi.array().items(schema)
+      // );
 
-      if (error) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Bad Request",
-          errors: error["details"][0]["message"],
-        });
-      }
-      // const isExist=await Limits.findOne({
-      //   where:{
-      //     user_id: user.id
-      //     // category_id: body.category_id
-      //   }
-      // })
-      // if(!isExist){
+      // if (error) {
       //   return res.status(400).json({
       //     status: "failed",
-      //     message: "User not found",
+      //     message: "Bad Request",
+      //     errors: error["details"][0]["message"],
       //   });
       // }
-      const check = await Limits.create({
-        category_id: body.category_id,
-        user_id: user.id,
-        limit: body.limit,
-      });
+
+      // const isExist=await Limits.findOne({
+      //   where:{
+      //     user_id: user.id,
+      //     category_id: category,
+      //     safe_id: safe_id
+      //   }
+      // })
+      // if(isExist){
+      //   return res.status(400).json({
+      //     status: "failed",
+      //     message: "already has this limit",
+      //   });
+      // }
+      // console.log(isExist)
+
+      const check = await Limits.bulkCreate(data);
 
       if (!check) {
         return res.status(400).json({
           status: "failed",
           message: "Unable to save the data to database",
+          data: null
         });
       }
       return res.status(200).json({
@@ -60,10 +73,10 @@ module.exports = {
         data: check,
       });
     } catch (error) {
-      console.log(error);
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
@@ -85,6 +98,7 @@ module.exports = {
         return res.status(404).json({
           status: "failed",
           message: "Data not found",
+          data: null
         });
       }
       return res.status(200).json({
@@ -93,32 +107,33 @@ module.exports = {
         data: limit,
       });
     } catch (error) {
-      console.log(error);
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
   getLimit: async (req, res) => {
+    const user = req.user
     try {
-      const token = req.header("Authorization").replace("Bearer ", "")
-      const user = jwt.getUserData(token)
       const limit = await Limits.findAll({
         where: {
           user_id: user.id,
         },
-        // include: [
-        //   {
-        //     model: Categories,
-        //     as: "Category",
-        //   },
-        // ],
+        include: [
+          {
+            model: Categories,
+            as: "Limit",
+          },
+        ],
+        order:[['category_id','ASC']]
       });
       if (limit.length == 0) {
         return res.status(404).json({
           status: "failed",
           message: "Data not found",
+          data: null
         });
       }
       return res.status(200).json({
@@ -127,17 +142,16 @@ module.exports = {
         data: limit,
       });
     } catch (error) {
-      console.log(error);
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
   updateLimit: async (req, res) => {
     const body = req.body;
-    const userData = getUserData(req.headers.token);
-    const userId = userData.id;
+    const user = req.user;
     try {
       const schema = Joi.object({
         category_id: Joi.number(),
@@ -161,10 +175,13 @@ module.exports = {
       }
 
       const updatedLimit = await Limits.update(
-        { ...body },
+        { 
+          limit: body.limit 
+        },
         {
           where: {
-            user_id: userId,
+            user_id: user.id,
+            category_id: body.category_id
           },
         }
       );
@@ -173,12 +190,14 @@ module.exports = {
         return res.status(400).json({
           status: "failed",
           message: "Unable to update database",
+          data: null
         });
       }
 
       const data = await Limits.findOne({
         where: {
-          user_id: userId,
+          user_id: user.id,
+          category_id: body.category_id
         },
       });
 
@@ -191,24 +210,25 @@ module.exports = {
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
   deleteLimit: async (req, res) => {
-    const id = req.params.id;
-    const userData = getUserData(req.headers.token);
-    const userId = userData.id;
+    const user = req.user;
+    const body= req.body
     try {
       const check = await Limits.destroy({
         where: {
-          category_id: id,
-          user_id: userId
+          category_id: body.category_id,
+          user_id: user.id
         },
       });
       if (!check) {
         return res.status(400).json({
           status: "failed",
           message: "Unable to delete the data",
+          data: null
         });
       }
       return res.status(200).json({
@@ -219,6 +239,7 @@ module.exports = {
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },

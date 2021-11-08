@@ -1,5 +1,6 @@
 const Joi = require("joi");
 const { Categories } = require("../models");
+const path = require("path");
 
 module.exports = {
   postCategory: async (req, res) => {
@@ -7,11 +8,13 @@ module.exports = {
     try {
       const schema = Joi.object({
         categoryName: Joi.string().required(),
+        caption: Joi.string().required(),
       });
 
       const { error } = schema.validate(
-        { 
-          categoryName: body.categoryName
+        {
+          categoryName: body.categoryName,
+          caption: body.caption,
         },
         { abortEarly: false }
       );
@@ -25,13 +28,15 @@ module.exports = {
       }
 
       const check = await Categories.create({
-        categoryName: body.categoryName
+        categoryName: body.categoryName,
+        caption: body.caption,
       });
 
       if (!check) {
         return res.status(400).json({
           status: "failed",
           message: "Unable to save the data to database",
+          data: null
         });
       }
       return res.status(200).json({
@@ -40,20 +45,23 @@ module.exports = {
         data: check,
       });
     } catch (error) {
-      console.log(error);
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
   getCategory: async (req, res) => {
     try {
-      const category = await Categories.findAll();
-      if (category.length==0) {
+      const category = await Categories.findAll({
+        order: [["id", "ASC"]],
+      });
+      if (category.length == 0) {
         return res.status(404).json({
           status: "failed",
           message: "Data not found",
+          data: null
         });
       }
       return res.status(200).json({
@@ -62,10 +70,10 @@ module.exports = {
         data: category,
       });
     } catch (error) {
-      console.log(error);
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
@@ -73,12 +81,16 @@ module.exports = {
     const body = req.body;
     try {
       const schema = Joi.object({
-        categoryName: Joi.string().required()
+        categoryName: Joi.string(),
+        image_url: Joi.string(),
+        caption: Joi.string(),
       });
 
       const { error } = schema.validate(
         {
-          categoryName: body.categoryName
+          categoryName: body.categoryName,
+          image_url: req.file ? req.file.path : "image_url",
+          caption: body.caption,
         },
         { abortEarly: false }
       );
@@ -92,7 +104,11 @@ module.exports = {
       }
 
       const updatedCategory = await Categories.update(
-        { ...body },
+        {
+          categoryName: body.categoryName,
+          [req.file ? "image_url" : null]: req.file ? req.file.path : null,
+          caption: body.caption,
+        },
         {
           where: {
             id: req.params.id,
@@ -104,6 +120,7 @@ module.exports = {
         return res.status(400).json({
           status: "failed",
           message: "Unable to update database",
+          data: null
         });
       }
 
@@ -122,6 +139,7 @@ module.exports = {
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
@@ -130,13 +148,14 @@ module.exports = {
     try {
       const check = await Categories.destroy({
         where: {
-          id, // id : id
+          id,
         },
       });
       if (!check) {
         return res.status(400).json({
           status: "failed",
           message: "Unable to delete the data",
+          data: null
         });
       }
       return res.status(200).json({
@@ -147,6 +166,7 @@ module.exports = {
       return res.status(500).json({
         status: "failed",
         message: "Internal Server Error",
+        data: null
       });
     }
   },
